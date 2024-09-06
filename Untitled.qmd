@@ -1,0 +1,11 @@
+---
+title: "Week 2 Practice"
+format: html
+editor: visual
+---
+
+## Hello, World!
+
+```{r}
+2+2
+```
