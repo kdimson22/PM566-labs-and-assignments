@@ -7,20 +7,6 @@ fig-width: 3
 fig-height: 3
 ---
 
-# Learning Goals
-
--   Read in and get familiar with the meteorology dataset
--   Step through the EDA "checklist" presented in the class slides
--   Practice making exploratory graphs
-
-As you do this, think about what questions you would like to ask regarding this data. What would you ask a collaborator who was more familiar with it?
-
-# Lab Description
-
-We will work with the meteorological data presented in lecture. Recall the dataset consists of weather station readings in the continental US.
-
-### **The objectives of the lab are to find the weather station with the highest elevation and look at patterns in the time series of its wind speed and temperature.**
-
 # 1. Read in the data
 
 First download and then read in with `data.table::fread()`. This is slightly faster than some of the more common functions, such as `read.table`, but it produces a different type of object, which is why we need to convert it into a `data.frame` after reading it in.
