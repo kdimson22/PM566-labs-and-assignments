@@ -1,0 +1,242 @@
+---
+title: "Lab 4"
+author: "Kendall Dimson"
+format: pdf
+embed-resources: true
+fig-width: 3
+fig-height: 3
+---
+
+## 1. Read in the Data
+
+```{r}
+library(tidyverse)
+```
+
+First download and then read in with data.table::fread()
+
+
+```{r}
+if (!file.exists("met_all.gz"))
+  download.file(
+    url = "https://raw.githubusercontent.com/USCbiostats/data-science-data/master/02_met/met_all.gz",
+    destfile = "met_all.gz",
+    method   = "libcurl",
+    timeout  = 60
+    )
+met <- data.table::fread("met_all.gz")
+```
+
+## 2. Prepare the data
+
+Remove temperatures less than -17C
+```{r}
+met <- met[met$temp > -17, ]
+```
+
+Make sure there are no missing data in the key variables coded as 9999, 999, etc
+
+```{r}
+summary(met)
+met[met$elev==9999.0, ] <- NA
+
+str(met$lon)
+```
+
+
+Generate a date variable using the functions as.Date() (hint: You will need the following to create a date paste(year, month, day, sep = "-")).
+
+```{r}
+year<- met$year
+month<- met$month
+day<- met$day
+
+date <- as.Date(paste(year, month, day, sep ="-"))
+```
+
+
+Using the data.table::week function, keep the observations of the first week of the month.
+
+```{r}
+met<- met[met$day <=7 ]
+```
+
+Compute the mean by station of the variables temp, rh, wind.sp, vis.dist, dew.point, lat, lon, and elev.
+
+```{r}
+met_means <- met[, .(mean_temp=mean(temp, na.rm=TRUE),
+                mean_rh= mean(rh, na.rm=TRUE),
+                mean_wind.sp=mean(wind.sp, na.rm=TRUE),
+                mean_vis.dist=mean(vis.dist, na.rm=TRUE),
+                mean_dew.point=mean(dew.point, na.rm=TRUE),
+                mean_lat=mean(lat, na.rm=TRUE),
+                mean_lon=mean(lon, na.rm=TRUE),
+                mean_elev=mean(elev, na.rm=TRUE)),
+          by = USAFID]
+
+```
+
+
+Create a region variable for NW, SW, NE, SE based on lon = -98.00 and lat = 39.71 degrees
+
+```{r}
+
+met_means$region <- ifelse(met_means$mean_lon<-98 & met_means$mean_lat >39.71, "NW",
+                        ifelse(met_means$mean_lon< -98 & met_means$mean_lat<=39.71, "SW",
+                        ifelse(met_means$mean_lon>=98 & met_means$mean_lat>39.71, "NE",
+                                "SE")))
+```
+
+
+Create a categorical variable for elevation as in the lecture slides
+```{r}
+met_means[, elev_cat := ifelse(mean_elev >252, "high", "low")]
+```
+
+
+
+## 3.Use geom_violin to examine the wind speed and dew point by region
+
+You saw how to use geom_boxplot in class. Try using geom_violin instead (take a look at the help). (hint: You will need to set the x aesthetic to 1)
+```{r}
+ggplot(met_means[!is.na(elev_cat)], aes(x=factor(1), y=mean_dew.point, fill=region)) + geom_violin(trim=FALSE) + facet_wrap(~region)
+
+ggplot(met_means[!is.na(elev_cat)], aes(x=factor(1), y=mean_wind.sp, fill=region)) + geom_violin(trim=FALSE) + facet_wrap(~region)
+```
+Use facets Make sure to deal with NAs Describe what you observe in the graph
+
+The graphs display distribution of wind speed and dewpoint in the NE and SE regions. For wind speed, it is between 0-5 m/s, and for dew point, the largest distribution is concentrated at dew.point=20.
+
+## 4. Use geom_jitter with stat_smooth to examine the association between dew point and wind speed by region
+
+Color points by region Make sure to deal with NAs 
+Fit a linear regression line by region 
+Describe what you observe in the graph
+
+For both regions, as the average dew point increases, the average wind speed decreases.
+
+```{r}
+ggplot(met_means, aes(x=mean_dew.point, y=mean_wind.sp, color=region))+
+  geom_jitter()+
+  stat_smooth(method="lm", aes(group=region))
+```
+
+
+## 5. Use geom_bar to create barplots of the weather stations by elevation category colored by region
+Bars by elevation category using position="dodge"
+Change colors from the default. Color by region using scale_fill_brewer see this
+Create nice labels on the axes and add a title
+Describe what you observe in the graph
+Make sure to deal with NA values
+
+```{r}
+ggplot(met_means[!is.na(elev_cat)]) +
+geom_bar(mapping=aes(x=elev_cat, fill=region), position="dodge") +
+  scale_fill_brewer() +
+  labs(title= "Barplots of Weather Stations, by elevation categories",
+       x= "elevation categories",
+       y="weather stations")
+```
+  There are more weather stations located at lower elevations, in comparison to weather stations located at higher elevations.
+
+## 6. Use stat_summary to examine mean dew point and wind speed by region with standard deviation error bars
+Make sure to remove NAs
+
+Use fun.data="mean_sdl" in stat_summary
+
+Add another layer of stats_summary but change the geom to "errorbar" (see the help).
+
+Describe the graph and what you observe
+```{r}
+
+met_means <- met_means[!is.na(mean_dew.point)]
+met_means <- met_means[!is.na(mean_wind.sp)]
+
+ggplot(data=met_means)+
+  stat_summary(mapping=aes(x=region,y=mean_dew.point),
+               fun.data='mean_sdl',
+               geom='pointrange',
+               position='dodge')+
+  stat_summary(mapping=aes(x=region,y=mean_dew.point),
+               fun.data='mean_sdl',
+               geom='errorbar',
+               position='dodge') 
+  
+  ggplot(data=met_means)+
+    stat_summary(mapping=aes(x=region,y=mean_wind.sp),
+               fun.data='mean_sdl',
+               geom='pointrange',
+               position='dodge')+
+    stat_summary(mapping=aes(x=region,y=mean_wind.sp),
+               fun.data='mean_sdl',
+               geom='errorbar',
+               position='dodge') 
+
+
+```
+
+Dew point is… average 15/16 in NW and 19 in SE.
+
+Wind speed is… average 2 in NW and 2.25 in SE.
+
+## 7. Make a map showing the spatial trend in relative humidity in the US
+Make sure to remove NAs
+Use leaflet()
+Make a color palette with custom colors
+Use addMarkers to include the top 10 places in relative humidity (hint: this will be useful rank(-rh) <= 10)
+Add a legend
+Describe the trend in RH across the US
+
+```{r}
+#library(leaflet)
+
+#met<- met%>% filter (!is.na(met$rh) , !is.na(met$lon))
+
+#temp.pal<- colorNumeric(c('blue','pink', 'green'),
+                        #  domain=met_means$mean_rh)
+
+#rh_top <- met_means %>% filter(rank(-mean_rh)<=10)
+#met$lon <- as.numeric(as.character(met$lon))
+#met_means$lon
+
+#map <- leaflet(met) %>% 
+ # addProviderTiles('OpenStreetMap') %>%
+  #addCircles(
+ #   lng= ~lon,
+   # lat= ~lat,
+ #   color=~temp.pal(rh),
+  #  fillOpacity = 0.5, radius=500 
+   # %>% 
+   # addMarkers(
+   #   lng=~rh_top$lon,
+   #   lat=~rh_top$lat,
+   #   label
+  #  ) %/%
+  #    addLegend('bottomleft', pal=temp.pal, values= met_means$mean_rh,
+  #              title='Relative Humidity', opacity=1)
+ # )
+#map
+
+#wasn't able to get code to function correctly on last two questions :( 
+```
+
+
+
+
+## 8. Use a ggplot extension
+Pick an extension (except cowplot) from here and make a plot of your choice using the met data (or met_avg)
+
+```{r}
+#library (ggplot2)
+#install.packages(ggforce)
+#library(gganimate)
+
+#plot <- ggplot(met, aes(x=date, y=temp))+
+  #geom_line(color="purple")+
+ # label(title 'Temperature over Time')
+#+transition_reveal(date)
+
+#animate(plot, nframes=100, width=800, height=400)
+```
+
+Might want to try examples that come with the extension first (e.g. ggtech, gganimate, ggforce)
