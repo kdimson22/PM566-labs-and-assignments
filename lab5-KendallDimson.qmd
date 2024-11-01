@@ -1,14 +1,17 @@
 ---
 title: "Lab 5"
 author: "Kendall Dimson"
-format: pdf
+format: html
 editor: visual
 embed-resources: true
-fig-width: 3
-fig-height: 3
 ---
 
 ## Set-Up
+
+
+```{r setup, include=FALSE}
+options(repos = c(CRAN = "https://cloud.r-project.org/"))
+```
 
 ```{r}
 install.packages("data.table")
@@ -49,10 +52,8 @@ dat <- merge(
   # Data
   x     = met,      
   y     = stations, 
-  # List of variables to match
   by.x  = "USAFID",
-  by.y  = "USAF", 
-  # Which obs to keep?
+  by.y  = "USAF",
   all.x = TRUE,      
   all.y = FALSE
   )
@@ -71,41 +72,96 @@ median_temp <- quantile(dat$temp, na.rm=TRUE, 0.5)
 median_wind.sp <- quantile (dat$wind.sp,  na.rm=TRUE,0.5)
 median_atm.press <- quantile(dat$atm.press, na.rm=TRUE, 0.5)
 
-station_temp<- dat |> filter (temp == median_temp) |> select('USAFID')
-station_wind.sp<- dat |> filter (wind.sp == median_wind.sp) |> select('USAFID')
-station_atm.press<- dat |> filter (atm.press == median_atm.press) |> select('USAFID')
+median_temp
+median_wind.sp
+median_atm.press
 
-print(station_temp, station_wind.sp, station_atm.press)
+station_temp <- dat |> filter(temp == median_temp) |> select(USAFID, temp)
+station_wind.sp <- dat |> filter(wind.sp == median_wind.sp) |> select(USAFID, wind.sp)
+station_atm.press <- dat |> filter(atm.press == median_atm.press) |> select(USAFID, atm.press)
+
+overlapping_stations <- Reduce(intersect, list(station_temp$USAFID, 
+                                               station_wind.sp$USAFID, 
+                                               station_atm.press$USAFID))
+
+# Print results
+cat("Median values:\n")
+cat("Temperature:", median_temp, "\n")
+cat("Wind Speed:", median_wind.sp, "\n")
+cat("Atmospheric Pressure:", median_atm.press, "\n")
+
+print(head(overlapping_stations,3))
+
+
 ```
-Stations 690150 and 720113 coincide.
+
+The best three weather stations are 690150, 720175, and 720198.
 
 ## Question 2
 
 Just like the previous question, you are asked to identify what is the most representative, the median, station per state. This time, instead of looking at one variable at a time, look at the euclidean distance. If multiple stations show in the median, select the one located at the lowest latitude.
-
 ```{r}
 medians<- dat |> summarise(
-    median_temp = median(temp),
-    median_wind.sp = median(wind.sp),
-    median_atm.press = median(atm.press)
+    median_temp = median(temp, na.rm=TRUE),
+    median_wind.sp = median(wind.sp, na.rm=TRUE),
+    median_atm.press = median(atm.press, na.rm=TRUE)
 )
 
-most_representative_stations <- dat|>
+dat <- dat |> 
+  mutate(distance = sqrt((temp - medians$median_temp)^2 + 
+                          (wind.sp - medians$median_wind.sp)^2 + 
+                          (atm.press - medians$median_atm.press)^2))
+
+stations_per_state <- dat |>
   group_by(STATE) |>
-  filter(distance == min(distance)) %>%
-  slice(which.min(lat)) %>%  # If multiple, select the one with the lowest latitude
+  filter(distance == min(distance, na.rm = TRUE)) |> 
+  slice(which.min(lat)) |>
   ungroup()
+
+print(stations_per_state |> select (USAFID, STATE, temp, wind.sp, atm.press))
+```
+
+## Question 3: In the middle?
+For each state, identify what is the station that is closest to the mid-point of the state. Combining these with the stations you identified in the previous question, use leaflet() to visualize all ~100 points in the same figure, applying different colors for those identified in this question.
+
+```{r}
+library(leaflet)
+state_midpoints <- dat |> 
+  group_by(STATE) |> 
+  summarise(lat_mean = mean(lat, na.rm=TRUE), 
+            lon_mean = mean(lon, NA.RM=TRUE), 
+            .groups = 'drop')
+
+closest <- dat |> 
+  left_join(state_midpoints, by = "STATE") |> 
+  mutate(distance_to_midpoint = sqrt((lat - lat_mean)^2 + (lon - lon_mean)^2)) |> 
+  group_by(STATE) |> 
+  slice(which.min(distance_to_midpoint)) |> 
+  ungroup() |> 
+  select(USAFID, lat = lat, lon = lon, STATE)
+
+# Combine representative stations and closest midpoint stations
+combined <- stations_per_state |> 
+  select(USAFID, lat, lon, STATE) |> 
+  bind_rows(closest) |> 
+  mutate(type = ifelse(USAFID %in% stations_per_state$USAFID, "STATE", "Closest to Midpoint"))
+
+# Create a leaflet map
+leaflet(combined) |> 
+  addTiles() |> 
+  addCircleMarkers(
+    ~lon, ~lat, 
+    color = ~ifelse(type == "Representative", "blue", "green"), 
+    radius = 5,
+    popup = ~paste("USAFID:", USAFID, "<br>State:", STATE, "<br>Type:", type)
+  ) |> 
+  setView(lng = -96, lat = 37.8, zoom = 4)
+
+
 ```
 
 
-## Question 3
-
-For each state, identify what is the station that is closest to the mid-point of the state. Combining these with the stations you identified in the previous question, use leaflet() to visualize all ~100 points in the same figure, applying different colors for those identified in this question.
-
-Knit the doc and save it on GitHub.
-
-## Question 4
-
+## Question 4: Means of means
 Using the quantile() function, generate a summary table that shows the number of states included, average temperature, wind-speed, and atmospheric pressure by the variable “average temperature level,” which you’ll need to create.
 
 Start by computing the states' average temperature. Use that measurement to classify them according to the following criteria:
@@ -122,7 +178,43 @@ Number of states included, and
 Mean temperature, wind-speed, and atmospheric pressure.
 All by the levels described before.
 
-Knit the document, commit your changes, and push them to GitHub. Once you’re done, you can email me the link to your repository or, preferably, link to the Lab 5 Issue in your commit message, as follows:
+```{r}
+library(dplyr)
 
-git commit -a -m "Finalizing lab 5 https://github.com/USCbiostats/PM566/issues/68"
-This will let me know which version of your repository to look at for grading purposes.
+# avg temp, by state
+state_averages <- dat |> 
+  group_by(STATE) |> 
+  summarise(avg_temp = mean(temp, na.rm = TRUE),
+            avg_wind = mean(wind.sp, na.rm = TRUE),
+            avg_pressure = mean(atm.press, na.rm = TRUE),
+            records = n(),
+            na_entries = sum(is.na(temp)),
+            stations = n_distinct(USAFID),
+            .groups = 'drop')
+
+# classify states by temp
+state_averages <- state_averages |> 
+  mutate(temp_level = ifelse(avg_temp < 20, "Low",
+                      ifelse(avg_temp >= 20 & avg_temp < 25, "Mid", 
+                      ifelse(avg_temp >= 25, "High", NA))))
+
+# summary table
+summary_table <- state_averages |> 
+  group_by(temp_level) |> 
+  summarise(
+    num_states = n(),
+    mean_temp = mean(avg_temp, na.rm = TRUE),
+    mean_wind = mean(avg_wind, na.rm = TRUE),
+    mean_pressure = mean(avg_pressure, na.rm = TRUE),
+    total_records = sum(records),
+    total_na_entries = sum(na_entries),
+    total_stations = sum(stations),
+    .groups = 'drop'
+  )
+
+# Print the summary table
+print(summary_table)
+
+```
+
+
