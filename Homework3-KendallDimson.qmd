@@ -1,0 +1,254 @@
+---
+title: "Homework 3"
+author: "Kendall Dimson"
+format: html
+editor: visual
+embed-resources: true
+---
+
+```{r, message=FALSE, warning=FALSE }
+#Set-up
+options(repos = c(CRAN = "https://cloud.r-project.org/"))
+install.packages("tidytext", quiet = TRUE)
+install.packages("textdata", quiet = TRUE)
+install.packages("data.table", quiet = TRUE)
+
+library(data.table)
+library(textdata)
+library(readr)
+library(dplyr)
+library(tidyverse)
+library(tidytext)
+
+# Read in Data
+abstract <- fread("https://raw.githubusercontent.com/USCbiostats/data-science-data/refs/heads/master/03_pubmed/pubmed.csv")
+
+
+```
+
+## Text Mining
+
+### Question 1
+Tokenize the abstracts and count the number of each token. Do you see anything interesting? Does removing stop words change what tokens appear as the most frequent? What are the 5 most common tokens for each search term after remocing stopwords?
+```{r}
+abstract |> 
+  unnest_tokens(token, abstract) |>
+  count (token, sort=TRUE) |>
+  top_n(5,n)
+
+abstract |> 
+ unnest_tokens(token, abstract) |>
+  anti_join(stop_words, by = c("token" = "word")) |>
+  filter(!str_detect(token, "^[0-9]+$")) |>
+  count(token, sort = TRUE) |>
+    top_n(5,n)
+
+#5 most common tokens for each search term
+```
+The removal of stopwords definitely improves finding the most common tokens, otherwise, the top words in the abstracts are stopwords such as "the," "and," etc. Overall, the most common tokens are "covid" (n=7275), "patients" (n=4674), "cancer" (n=3999), "prostate" (n=3832), and "disease" (n=2574).
+
+```{r}
+table(abstract$term)
+
+#Search terms: "covid" "cystic fibrosis" "meningitis" "preeclampsia" "prostate cancer"
+```
+```{r}
+covid <- abstract |> filter(term=='covid')
+covid |> 
+ unnest_tokens(token, abstract) |>
+  anti_join(stop_words, by = c("token" = "word")) |>
+  filter(!str_detect(token, "^[0-9]+$")) |>
+  count(token, sort = TRUE) |>
+    top_n(5,n)
+```
+In the search term, "covid," after removing the stop words, the five most common tokens are: "covid" (n=7275), "patients" (n=2293), "disease" (n=943), "pandemic" (n=800), and the words "coronavirus" and "health" are tied for fifth-most common (n=647).
+```{r}
+cf <- abstract |> filter(term=='cystic fibrosis')
+cf |> 
+ unnest_tokens(token, abstract) |>
+  anti_join(stop_words, by = c("token" = "word")) |>
+  filter(!str_detect(token, "^[0-9]+$")) |>
+  count(token, sort = TRUE) |>
+    top_n(5,n)
+```
+In the search term, "cystic fibrosis," after removing the stop words, the five most common tokens are:"fibrosis" (n=867), "cystic" (n=862), "cf" (n=625), "patients" (n=586), and "disease" (n=400).
+
+```{r}
+meningitis <- abstract |> filter (term=='meningitis')
+meningitis |> 
+ unnest_tokens(token, abstract) |>
+  anti_join(stop_words, by = c("token" = "word")) |>
+  filter(!str_detect(token, "^[0-9]+$")) |>
+  count(token, sort = TRUE) |>
+    top_n(5,n)
+```
+In the search term, "meningitis," after removing the stop words, the five most common tokens are:"patients" (n=446), "meningitis" (n=429), "meningeal" (n=219), "csf" (n=206), and "clinical" (n=187).
+
+```{r}
+preeclampsia <- abstract |> filter (term=='preeclampsia')
+preeclampsia |> 
+ unnest_tokens(token, abstract) |>
+  anti_join(stop_words, by = c("token" = "word")) |>
+  filter(!str_detect(token, "^[0-9]+$")) |>
+  count(token, sort = TRUE) |>
+    top_n(5,n)
+```
+In the search term, "preeclampsia," after removing the stop words, the five most common tokens are:"pre" (n=2038), "eclampsia" (n=2005), "preeclampsia" (n=1863), "women" (n=1196), and "pregnancy" (n=969).
+
+```{r}
+prostate <- abstract |> filter (term=='prostate cancer')
+prostate |> 
+ unnest_tokens(token, abstract) |>
+  anti_join(stop_words, by = c("token" = "word")) |>
+  filter(!str_detect(token, "^[0-9]+$")) |>
+  count(token, sort = TRUE) |>
+    top_n(5,n)
+```
+In the search term, "prostate cancer," after removing the stop words, the five most common tokens are:"cancer" (n=3840), "prostate" (n=3832), "patients" (n=934), "treatment" (n=926), and "disease" (n=652).
+
+
+### Question 2
+Tokenize the abstracts into bigrams. Find the 10 most common bigrams and visualize them with ggplot2.
+
+```{r}
+abstract |>
+  unnest_ngrams(ngram, abstract, n = 2) |>
+  count(ngram, sort = TRUE) |>
+  slice_max(order_by = n, n = 10) |> 
+  ggplot(aes(x = n, y = fct_reorder(ngram, n), fill=n)) +
+  geom_col() +  scale_fill_gradient(low = "lightblue", high = "darkblue")+ labs(
+    x = "Frequency", 
+    y = "Bigram", 
+    title = "Top 10 Most Common Bigrams"
+  ) +
+  theme_minimal()
+
+
+```
+
+### Question 3
+Calculate the TF-IDF value for each word-search term combination (here you want the search term to be the “document”). What are the 5 tokens from each search term with the highest TF-IDF value? How are the results different from the answers you got in question 1?
+
+```{r}
+tfidf <- abstract |>
+  unnest_tokens(token, abstract) |>  
+  anti_join(stop_words, by = c("token" = "word")) |>
+  filter(!str_detect(token, "^[0-9]+$")) |>
+  count(term, token, sort = TRUE) |>
+  bind_tf_idf(token, term, n) |>
+    group_by(term) |>
+    top_n(5, tf_idf)|>
+    arrange(term, -tf_idf)
+
+```
+
+The five tokens from each search term with the highest TF-IDF value, comparing to Question 1:
+
+COVID:
+Question 1: patients, disease, pandemic, coronavirus, health
+
+Question 3 (top 5 tokens with highest TF-IDF value): covid, pandemic, coronavirus, sars, cov
+
+New words replaced: sars, cov
+```{r}
+#Covid
+tfidf|> filter(term=='covid')
+```
+
+```{r}
+#Cystic Fibrosis
+tfidf|> filter(term=='cystic fibrosis')
+```
+
+Question 1: fibrosis, cystic, cf, patients, disease
+
+Question 3 (top 5 tokens with highest TF-IDF value): cf, fibrosis, cystic, cftr, sweat
+
+New words replaced: cftr, sweat
+
+```{r}
+#meningitis
+tfidf|> filter(term=='meningitis')
+```
+
+Question 1:patients, meningitis, meningeal, csf, clinical
+
+Question 3 (top 5 tokens with highest TF-IDF value): meningitis, meningeal, pachymeningitis, csf, meninges
+
+new words replaced: pachymeningitis, meninges
+
+```{r}
+#Preeclampsia
+tfidf|> filter(term=='preeclampsia')
+```
+
+Question 1:pre, eclampsia, preeclampsia, women, pregnancy
+
+Question 3 (top 5 tokens with highest TF-IDF value): eclampsia, preeclampsia, pregnancy, maternal, gestational
+
+new words replaced: maternal, gestational
+
+```{r}
+#Prostate cancer
+tfidf|> filter(term=='prostate cancer')
+```
+
+Question 1: cancer, prostate, patients, treatment, disease
+
+Question 3 (top 5 tokens with highest TF-IDF value): prostate, androgen, psa, prostatectomy, castration'
+
+new words replaced: androgen, psa, prostatectomy, castration
+
+
+Overall, terms such as "disease," "patients," "health," treatment," and "disease" have a high frequency but low TF-IDF, such that they don't contribute as much to the overall meaning of the abstracts. In the tokens of each search term with the highest TF-IDF, they are more related to the topics and makes it more interpretable.
+
+
+
+## Sentiment Analysis
+
+### Question 1
+Perform a sentiment analysis using the NRC lexicon. What is the most common sentiment for each search term? What if you remove "positive" and "negative" from the list?
+
+```{r, warning = FALSE}
+
+# Sentiment Analysis #1
+sentiment_analysis <- abstract |>
+  unnest_tokens(word, abstract) |> 
+  inner_join(get_sentiments("nrc"), by = "word") |> 
+  group_by(term) |>  
+  summarise(sentiment = names(which.max(table(sentiment)))) 
+print(sentiment_analysis)
+
+# sentiment analysis #2, excluding "positive" and "negative"
+sentiment_analysis_2 <- abstract |>
+  unnest_tokens(word, abstract) |>  
+  inner_join(get_sentiments("nrc"), by = "word") |>  
+  filter(sentiment != c("positive", "negative")) |>
+  group_by(term) |>  
+  summarise(sentiment = names(which.max(table(sentiment))))  
+print(sentiment_analysis_2)
+
+```
+Covid, cystic fibrosis, and preeclampsia have a positive sentiment. Meningitis and prostate cancer have a negative sentiment.
+
+When filtering to exclude 'positive' and 'negative,' covid, meningitis, and prostate cancer's overall sentiment is 'fear'. Cystic fibrosis overall sentiment is 'disgust.' Preeclampsia's overall sentiment is 'anticipation." When removing "positive" and "negative" it gives a much more interesting analysis on the connotation of words used in the abstracts on each term topic.
+
+### Question 2
+Now perform a sentiment analysis using the AFINN lexicon to get an average positivity score for each abstract (hint: you may want to create a variable that indexes, or counts, the abstracts). Create a visualization that shows these scores grouped by search term. Are any search terms noticeably different from the others?
+
+```{r}
+avg_term <- abstract |>
+  unnest_tokens(word, abstract) |>
+  inner_join(get_sentiments("afinn")) |> 
+  group_by(term) |> 
+  summarise(sentiment = mean(value))
+
+ggplot(avg_term, aes(x = reorder(term, sentiment), y = sentiment, fill="plum"))+
+  geom_bar(stat = "identity", , fill='plum',show.legend = FALSE) +
+  labs(
+    x = "Search Term", 
+    y = "Average Sentiment", 
+    title = "Average Sentiment for Each Search Term") +
+    theme_minimal()
+```
+Cystic fibrosis is the only search term with a positive sentiment using the afinn lexicon, while the other search terms (covid, prostate cancer, meningitis, preeclampsia) have a negative sentiment with the afinn lexicon.
