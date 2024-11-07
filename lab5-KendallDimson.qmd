@@ -14,10 +14,11 @@ options(repos = c(CRAN = "https://cloud.r-project.org/"))
 ```
 
 ```{r}
-install.packages("data.table")
-library(data.table)
+install.packages("tidytext")
+library(readr)
+library(dplyr)
 library(tidyverse)
-library(dtplyr)
+library(tidytext)
 
 # Download the data
 stations <- fread("https://noaa-isd-pds.s3.amazonaws.com/isd-history.csv")

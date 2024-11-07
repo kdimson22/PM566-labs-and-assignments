@@ -1,0 +1,11 @@
+---
+title: "Lab 9"
+author: "Kendall Dimson"
+format: html
+editor: visual
+embed-resources: true
+---
+
+## Problem 1: Vectorization
+
+## Problem 3: Parallelization

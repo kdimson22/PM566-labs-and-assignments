@@ -29,7 +29,7 @@ head(mt_samples)
 
 We can use count() from dplyr to figure out how many different catagories do we have? Are these catagories related? overlapping? evenly distributed?
 
-There are 40 categories of medical specialties. The top five include surgery, cardiovascular/pulmonary, orthopedic, radiology, and general medicine. There is an uneven distribution. There are also overlapping categories: "Consult - History and Phy.," "SOAP / Chart / Progress Notes," Discharge Summary," "Pain Management," "Office Notes," "Letters" outlining administrative data. 
+There are 40 categories of medical specialties. The top five include surgery, cardiovascular/pulmonary, orthopedic, radiology, and general medicine. There is an uneven distribution. There are also overlapping categories: "Consult - History and Phy.," "SOAP / Chart / Progress Notes," Discharge Summary," "Pain Management," "Office Notes," "Letters" outlining administrative data.
 
 ```{r}
 mt_samples |>
@@ -58,6 +58,7 @@ mt_samples |>
   top_n(20,n)|>
   ggplot(aes(n,fct_reorder(token,n))) + geom_col()
 ```
+
 The top 20 frequent words such as "the" "and" "was" are very common words we use in our everyday sentences. We would have to remove stop words to get a better picture of the main messages behind the transcription.
 
 ## Question 3
@@ -84,6 +85,7 @@ mt_samples |>
     top_n(20,n)|>
   ggplot(aes(n,fct_reorder(token,n))) + geom_col()
 ```
+
 After the removal of stop words (and numbers), it gives a much better visualization that the transcription is about medical examinations. Of the top words, the top three now are "patient," "left," and "history" which makes much more sense.
 
 ## Question 4
@@ -102,11 +104,13 @@ mt_samples |>
   unnest_ngrams(ngram, transcription, n = 3) |>
    count(ngram, sort = TRUE)
 ```
+
 The significance of bigrams and trigrams seem similar. In this lab, I will answer question 5 with bigrams.
 
 ## Question 5
 
 Using the results you got from questions 4. Pick a word and count the words that appears after and before it.
+
 ```{r}
 mt_samples |>
   unnest_ngrams(ngram, transcription, n =2) |>
@@ -122,7 +126,6 @@ mt_samples |>
   filter(word1 == "pain") |>
    count(word2, sort = TRUE)
 ```
-
 
 ## Question 6
 
